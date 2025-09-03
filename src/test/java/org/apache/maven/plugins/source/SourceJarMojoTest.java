@@ -19,6 +19,8 @@
 package org.apache.maven.plugins.source;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 
@@ -175,6 +177,26 @@ public class SourceJarMojoTest extends AbstractSourcePluginTestCase {
                         "foo/",
                         "META-INF/MANIFEST.MF",
                         "META-INF/"));
+    }
+
+    @Test
+    @InjectMojo(goal = "jar")
+    @Basedir("${basedir}/target/test-classes/unit/msources-144")
+    public void includesAdditionSourcesFromMain(AbstractSourceJarMojo mojo) throws IOException {
+        mojo.execute();
+
+        Path target = Paths.get(getBasedir()).resolve("target");
+        assertSourceArchive(target.toFile(), "msources-144");
+
+        // must include MRJar configuration from the compiler plugin
+        assertJarContent(
+            getSourceArchive(target.toFile(), "msources-144"),
+            addMavenDescriptor(
+                "msources-144",
+                "SomeClass.java",
+                "META-INF/versions/9/SomeClass.java"
+            )
+        );
     }
 
     @Provides
