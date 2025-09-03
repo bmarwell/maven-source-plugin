@@ -19,8 +19,6 @@
 package org.apache.maven.plugins.source;
 
 import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * @author <a href="mailto:oching@exist.com">Maria Odea Ching</a>
