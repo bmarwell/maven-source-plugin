@@ -18,14 +18,21 @@
  */
 package org.apache.maven.plugins.source;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginExecution;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 
 /**
  * This goal bundles all the sources into a jar archive. This goal functions the same as the jar goal but does not fork
@@ -46,7 +53,56 @@ public class SourceJarNoForkMojo extends AbstractSourceJarMojo {
      * {@inheritDoc}
      */
     protected List<String> getSources(MavenProject p) {
-        return p.getCompileSourceRoots();
+        List<String> compilerConfigurationPaths = new ArrayList<>();
+
+        for (Plugin plugin : p.getModel().getBuild().getPlugins()) {
+            if (!plugin.getArtifactId().equals("maven-compiler-plugin") || !plugin.getGroupId().equals("org.apache.maven.plugins")) {
+                continue;
+            }
+
+            // TODO: detect execution configurations and default configuration whether it includes additional source roots.
+            Object compilerConfig = plugin.getConfiguration();
+            compilerConfigurationPaths.addAll(readPathsFromCompilerConfig(compilerConfig));
+
+            for (PluginExecution execution : plugin.getExecutions()) {
+                Object executionConfiguration = execution.getConfiguration();
+                compilerConfigurationPaths.addAll(readPathsFromCompilerConfig(executionConfiguration));
+            }
+
+            break;
+        }
+
+        return Stream.concat(
+            compilerConfigurationPaths.stream(),
+            p.getCompileSourceRoots().stream()
+        ).collect(Collectors.toList());
+    }
+
+    private Collection<String> readPathsFromCompilerConfig(Object compilerConfig) {
+        if (compilerConfig == null) {
+            return Collections.emptyList();
+        }
+
+        if (!(compilerConfig instanceof Xpp3Dom)) {
+            return Collections.emptyList();
+        }
+
+        Xpp3Dom configuration = (Xpp3Dom) compilerConfig;
+        Xpp3Dom compileSourceRoots = configuration.getChild("compileSourceRoots");
+
+        if  (compileSourceRoots == null) {
+            return Collections.emptyList();
+        }
+
+        Xpp3Dom[] compileSourceRootsChildren = compileSourceRoots.getChildren();
+
+        List<String> compileSourcePaths = new ArrayList<>();
+
+        for (Xpp3Dom child : compileSourceRootsChildren) {
+            compileSourcePaths.add(child.getValue());
+        }
+
+        return compileSourcePaths;
     }
 
     /**
